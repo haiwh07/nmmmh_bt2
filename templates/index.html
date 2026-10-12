@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nhin thay entropy cua van ban</title>
+<script src="{{ url_for('static', filename='chart.umd.js') }}"></script>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+    max-width: 1100px; margin: 24px auto; padding: 0 16px;
+    background: #0f1115; color: #e6e6e6;
+  }
+  h2 { margin-bottom: 4px; }
+  .subtitle { color: #9aa0a6; margin-top: 0; }
+  textarea {
+    width: 100%; height: 150px; font-family: ui-monospace, monospace;
+    font-size: 14px; padding: 10px; background: #1b1e26; color: #eee;
+    border: 1px solid #333; border-radius: 8px; box-sizing: border-box;
+  }
+  button {
+    padding: 9px 18px; margin-top: 10px; cursor: pointer;
+    background: #4f8cff; border: none; color: white; border-radius: 6px;
+    font-size: 14px; font-weight: 600;
+  }
+  button:hover { background: #3d78e8; }
+  .slider-row {
+    margin-top: 18px; display: flex; align-items: center; gap: 12px;
+    background: #1b1e26; padding: 12px 16px; border-radius: 8px;
+  }
+  input[type=range] { flex: 1; }
+  .stats {
+    margin-top: 16px; font-size: 15px; background: #1b1e26;
+    padding: 12px 16px; border-radius: 8px; line-height: 1.8;
+  }
+  .stats b { color: #4f8cff; }
+  .charts { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
+  .chart-box {
+    flex: 1; min-width: 400px; background: #1b1e26;
+    padding: 14px; border-radius: 8px;
+  }
+  .chart-box h3 { margin-top: 0; font-size: 15px; color: #c9c9c9; }
+  .test-table { font-size: 13px; color: #9aa0a6; margin-top: 30px; }
+</style>
+</head>
+<body>
+
+<h2>Nhin thay entropy cua van ban</h2>
+<p class="subtitle">Nhap mon Mat ma hoc &middot; Chuong 2</p>
+
+<p>Dan mot doan van ban vao o ben duoi, bam "Phan tich". Trang se dem
+tan suat 26 chu cai (khong phan biet hoa/thuong, bo qua ky tu khac),
+tinh entropy H, va so sanh bien doi khi ap dung ma Caesar.</p>
+
+<textarea id="inputText" placeholder="Dan van ban vao day... (vi du: mot doan tieng Anh dai >= 500 ky tu)"></textarea>
+<br>
+<button onclick="analyze()">Phan tich</button>
+
+<div class="slider-row">
+  <label for="kSlider"><b>Khoa Caesar k:</b></label>
+  <input type="range" id="kSlider" min="0" max="25" value="3"
+         oninput="document.getElementById('kVal').innerText = this.value; analyze();">
+  <span id="kVal" style="min-width: 24px; text-align:center;">3</span>
+</div>
+
+<div class="stats" id="stats">Chua co du lieu. Hay dan van ban va bam "Phan tich".</div>
+
+<div class="charts">
+  <div class="chart-box">
+    <h3>Ban ro (plaintext)</h3>
+    <canvas id="plainChart"></canvas>
+  </div>
+  <div class="chart-box">
+    <h3>Ban ma Caesar (k = <span id="kLabel">3</span>)</h3>
+    <canvas id="cipherChart"></canvas>
+  </div>
+</div>
+
+<p class="test-table">
+  Tu kiem tra nhanh: "aaaaaaaa" &rarr; H = 0 (1 cot duy nhat).
+  Du 26 chu, moi chu 1 lan &rarr; H &approx; 4.70 (bieu do phang, bang duong 1/26).
+  Doan tieng Anh dai &rarr; H &approx; 4.1&ndash;4.2, cot "e", "t" cao nhat.
+  Sau khi ma hoa Caesar &rarr; H khong doi, bieu do dich sang phai dung k o.
+</p>
+
+<script>
+const LETTERS = "abcdefghijklmnopqrstuvwxyz".split('');
+let plainChart, cipherChart;
+
+// Bao ve: neu Chart.js khong tai duoc (vi du do mang chan), bao loi ro rang
+// thay vi im lang khong ve gi ca.
+if (typeof Chart === 'undefined') {
+  document.getElementById('stats').innerHTML =
+    '<span style="color:#ff5c5c">Loi: khong tai duoc thu vien Chart.js (static/chart.umd.js). ' +
+    'Kiem tra file co ton tai trong thu muc static/ khong, va xem tab Console (F12) de biet them chi tiet.</span>';
+}
+
+function makeChart(ctx, counts, color) {
+  const total = counts.reduce((a, b) => a + b, 0) || 1;
+  const freqs = counts.map(c => c / total);
+  return new Chart(ctx, {
+    data: {
+      labels: LETTERS,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Tan suat',
+          data: freqs,
+          backgroundColor: color,
+        },
+        {
+          type: 'line',
+          label: '1/26 (deu nhau)',
+          data: LETTERS.map(() => 1 / 26),
+          borderColor: '#ff5c5c',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { beginAtZero: true, suggestedMax: 0.15, ticks: { color: '#aaa' }, grid: { color: '#2a2d35' } },
+        x: { ticks: { color: '#aaa' }, grid: { color: '#2a2d35' } }
+      },
+      plugins: { legend: { labels: { color: '#e6e6e6' } } }
+    }
+  });
+}
+
+async function analyze() {
+  const text = document.getElementById('inputText').value;
+  const k = parseInt(document.getElementById('kSlider').value, 10);
+  document.getElementById('kLabel').innerText = k;
+
+  if (!text.trim()) {
+    document.getElementById('stats').innerText = 'Chua co du lieu. Hay dan van ban va bam "Phan tich".';
+    return;
+  }
+
+  let data;
+  try {
+    const res = await fetch('/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, k })
+    });
+    if (!res.ok) throw new Error('Server tra ve loi HTTP ' + res.status);
+    data = await res.json();
+  } catch (err) {
+    document.getElementById('stats').innerHTML =
+      '<span style="color:#ff5c5c">Loi khi goi /analyze: ' + err.message +
+      '. Kiem tra server Flask co dang chay khong, va xem tab Network (F12) de biet them chi tiet.</span>';
+    return;
+  }
+
+  document.getElementById('stats').innerHTML =
+    `So chu cai dem duoc: <b>${data.total_letters}</b> &nbsp;|&nbsp; ` +
+    `H(ban ro) = <b>${data.plain_entropy}</b> bit &nbsp;|&nbsp; ` +
+    `H(ban ma) = <b>${data.cipher_entropy}</b> bit &nbsp;|&nbsp; ` +
+    `H toi da = log&#8322;26 &approx; <b>${data.max_entropy}</b> bit`;
+
+  if (plainChart) plainChart.destroy();
+  if (cipherChart) cipherChart.destroy();
+  plainChart = makeChart(document.getElementById('plainChart'), data.plain_counts, '#4f8cff');
+  cipherChart = makeChart(document.getElementById('cipherChart'), data.cipher_counts, '#5fd38d');
+}
+</script>
+
+</body>
+</html>
